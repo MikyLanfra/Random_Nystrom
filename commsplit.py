@@ -5,7 +5,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-n = 9
+n = 8
 n_blocks = np.sqrt(size)
 A = np.empty((0,0), dtype=np.float64)
 
@@ -29,16 +29,20 @@ else:
 
 comm_rows.Scatterv(A, A_i, root=0)
 
+if rank == 0:
+    print(f'Rank {rank} has\n{A_i}')
 
 # Split into first row
 matrix_to_send = None
 if rank_col == 0:
-    arrs = np.split(A_i, size, axis=1)
+    arrs = np.split(A_i, np.sqrt(size), axis=1)
+    # print(arrs)
     raveled = [np.ravel(arr) for arr in arrs]
+    # print(raveled)
     matrix_to_send = np.concatenate(raveled)
 
 A_ij = np.empty((int(n//n_blocks), int(n//n_blocks)), dtype=np.float64)
 comm_cols.Scatterv(matrix_to_send, A_ij, root=0)
-print(f'Rank {rank} has\n{A_ij.T}')
+print(f'Rank {rank} has\n{A_ij}')
 ### cd C:\Users\miche\Documents\GitHub\HPC-Project2
 ### mpiexec -n 9 python commsplit.py
