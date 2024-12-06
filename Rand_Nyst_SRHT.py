@@ -8,8 +8,8 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 n = 1024
-l = 250
-K = 200
+l = 50
+K = 10
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
 matrix_to_send = None
