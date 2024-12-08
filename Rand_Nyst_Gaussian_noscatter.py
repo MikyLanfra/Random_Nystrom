@@ -7,7 +7,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-n = 2**12
+n = 2**13
 l = 60
 K = 50
 n_blocks = np.sqrt(size).astype(int)
@@ -24,7 +24,7 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_MNIST_4096.pkl", "rb") as f:
+    with open("A_MNIST_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
     # _, S, _ = np.linalg.svd(A)

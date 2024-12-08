@@ -1,14 +1,15 @@
 from mpi4py import MPI
 import numpy as np
+from scipy.linalg import svd
 import pickle
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-n = 1024
-l = 250
-K = 200
+n = 2**13
+l = 60
+K = 50
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
 matrix_to_send = None
@@ -23,22 +24,21 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_Poly_test.pkl", "rb") as f:
+    with open("A_MNIST_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
-    nNormA = np.sum(A)
+    # _, S, _ = np.linalg.svd(A)
 
-    A = np.diag(A)
-
-    # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
+    # nNormA = np.sum(S)
+    time = MPI.Wtime()
 
 # Split into first column
 if rank_col == 0:
-    A_i = np.empty((int(n//n_blocks), n), dtype=np.float64)
+    A_i = np.ascontiguousarray(np.empty((int(n//n_blocks), n), dtype=np.float64))
 else:
-    A_i = np.empty((0,0), dtype=np.float64)
+    A_i = np.ascontiguousarray(np.empty((0,0), dtype=np.float64))
 
-comm_rows.Scatterv(A, A_i, root=0)
+comm_rows.Scatterv(np.ascontiguousarray(A), A_i, root=0)
 
 # Split into first row
 if rank_col == 0:
@@ -78,6 +78,7 @@ comm.Scatterv(C, C_loc, root=0)
 
 # EIGENDEMPOSITION OF B
 U, lbda, _ = np.linalg.svd(B)
+# U, lbda, _ = svd(B)
 L = np.dot(U, np.diag(np.sqrt(lbda)))
 
 # COMPUTE Z
@@ -146,9 +147,10 @@ comm.Gatherv(Uk_hat_loc, Uk_hat, root=0)
 if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
+    print(f"Time: {MPI.Wtime() - time}")
 
-    _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
+    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
 
-    nNorm = np.sum(S_Nyst)
+    # nNorm = np.sum(S_Nyst)
 
-    print(f"Relative error: {nNorm/nNormA}")
+    # print(f"Relative error: {nNorm/nNormA}")

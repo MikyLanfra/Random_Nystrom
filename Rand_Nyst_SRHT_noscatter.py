@@ -8,7 +8,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-n = 2**12
+n = 2**13
 l = 60
 K = 50
 n_blocks = np.sqrt(size).astype(int)
@@ -26,7 +26,7 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_MNIST_4096.pkl", "rb") as f:
+    with open("A_MNIST_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
     time1 = MPI.Wtime()
@@ -77,6 +77,10 @@ omega_i_right = np.sqrt(c/l) * np.dot(D_i_left_R, np.dot(HR, D_i_right_R))
 
 C_ij = np.dot(A_ij, omega_i_right)
 B_ij = np.dot(omega_i_left.T, C_ij)
+
+del HR
+if rank == 0:
+    del H, R, A
 
 
 # COMPUTE C

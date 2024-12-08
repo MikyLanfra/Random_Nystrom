@@ -1,15 +1,16 @@
 from mpi4py import MPI
 import numpy as np
-import scipy as sp
+import scipy.linalg as sp
+from scipy.linalg import svd
 import pickle
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-n = 1024
-l = 50
-K = 10
+n = 2**13
+l = 60
+K = 50
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
 matrix_to_send = None
@@ -25,20 +26,26 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_Poly_test.pkl", "rb") as f:
+    with open("A_MNIST_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
-    H = sp.linalg.hadamard(c)
+    time1 = MPI.Wtime()
+
+    H = sp.hadamard(c)
     np.random.seed(42069)
     R = np.eye(c)[np.random.randint(0, c, l)]
 
-    nNormA = np.sum(A)
+    # _, S, _ = np.linalg.svd(A)
 
-    A = np.diag(A)
+    # nNormA = np.sum(S)
 
     HR = np.dot(H, R.T)
 
+    print(f"Time to load A and generate HR: {MPI.Wtime() - time1}")
+
     # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
+
+    time2 = MPI.Wtime()
 
 HR = comm.bcast(HR, root=0)
 
@@ -71,6 +78,10 @@ omega_i_right = np.sqrt(c/l) * np.dot(D_i_left_R, np.dot(HR, D_i_right_R))
 C_ij = np.dot(A_ij, omega_i_right)
 B_ij = np.dot(omega_i_left.T, C_ij)
 
+del HR
+if rank == 0:
+    del H, R, A
+
 
 # COMPUTE C
 C = np.empty((n, l), dtype=np.float64)
@@ -90,6 +101,7 @@ comm.Scatterv(C, C_loc, root=0)
 
 # EIGENDEMPOSITION OF B
 U, lbda, _ = np.linalg.svd(B)
+# U, lbda, _ = svd(B)
 L = np.dot(U, np.diag(np.sqrt(lbda)))
 
 # COMPUTE Z
@@ -158,9 +170,10 @@ comm.Gatherv(Uk_hat_loc, Uk_hat, root=0)
 if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
+    print(f"Time to compute Nystrom: {MPI.Wtime() - time2}")
 
-    _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
+    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
 
-    nNorm = np.sum(S_Nyst)
+    # nNorm = np.sum(S_Nyst)
 
-    print(f"Relative error: {nNorm/nNormA}")
+    # print(f"Relative error: {nNorm/nNormA}")
