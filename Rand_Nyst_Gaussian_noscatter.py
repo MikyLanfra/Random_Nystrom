@@ -8,7 +8,7 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 n = 2**13
-l = 60
+l = 200
 K = 50
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
@@ -22,9 +22,10 @@ comm_rows = comm.Split(color=rank % n_blocks, key=rank // n_blocks)
 rank_col = comm_cols.Get_rank()
 rank_row = comm_rows.Get_rank()
 
+
 if rank == 0:
     
-    with open("A_MNIST_8192.pkl", "rb") as f:
+    with open("A_MSD_105_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
     # _, S, _ = np.linalg.svd(A)
@@ -76,73 +77,74 @@ comm.Allreduce(B_ij, B, op=MPI.SUM)
 # # CHOLESKY DECOMPOSITION
 # L = np.linalg.cholesky(B)
 
-# EIGENDEMPOSITION OF B
-U, lbda, _ = np.linalg.svd(B)
-# U, lbda, _ = svd(B)
-L = np.dot(U, np.diag(np.sqrt(lbda)))
-
-# COMPUTE Z
-Z_loc = np.dot(C_i, np.linalg.inv(L.T))
-
-# QR FACTORIZATION OF Z
-Qs = []
-Q_loc, R_loc = np.linalg.qr(Z_loc)
-Qs.append(Q_loc)
-
-# Reduction tree to compute R
-for k in range(int(np.log2(np.sqrt(size)))):
-    if rank_col % 2**k != 0:
-        break
-
-    J = int(2**(k+1)*np.floor(rank_col/2**(k+1)) + (rank_col + 2**k) % 2**(k+1))
-
-    if rank_col > J:
-        comm_cols.send(R_loc, dest = J, tag = 11)
-
-
-    else:
-        R_rec = comm_cols.recv(source = J, tag = 11)
-        Q_loc, R_loc = np.linalg.qr(np.vstack([R_loc, R_rec]))
-        Qs.append(Q_loc)
-    
-
 if rank_col == 0:
-    R = R_loc
-    sub_Q = np.array(Qs[-1])
+    # EIGENDEMPOSITION OF B
+    U, lbda, _ = np.linalg.svd(B)
+    # U, lbda, _ = svd(B)
+    L = np.dot(U, np.diag(np.sqrt(lbda)))
+
+    # COMPUTE Z
+    Z_loc = np.dot(C_i, np.linalg.inv(L.T))
+
+    # QR FACTORIZATION OF Z
+    Qs = []
+    Q_loc, R_loc = np.linalg.qr(Z_loc)
+    Qs.append(Q_loc)
+
+    # Reduction tree to compute R
+    for k in range(int(np.log2(np.sqrt(size)))):
+        if rank_row % 2**k != 0:
+            break
+
+        J = int(2**(k+1)*np.floor(rank_row/2**(k+1)) + (rank_row + 2**k) % 2**(k+1))
+
+        if rank_row > J:
+            comm_rows.send(R_loc, dest = J, tag = 11)
 
 
-# Reduction tree to compute Q
-for k in range(int(np.log2(np.sqrt(size)))-1, -1, -1):
-    if rank_col % 2**k != 0:
-        continue
+        else:
+            R_rec = comm_rows.recv(source = J, tag = 11)
+            Q_loc, R_loc = np.linalg.qr(np.vstack([R_loc, R_rec]))
+            Qs.append(Q_loc)
+        
 
-    J = int(2**(k+1)*np.floor(rank_col/2**(k+1)) + (rank_col + 2**k) % 2**(k+1))
+    if rank_row == 0:
+        R = R_loc
+        sub_Q = np.array(Qs[-1])
 
-    if rank_col < J:
-        comm_cols.send(sub_Q[l:, :], dest = J, tag = 878)
-        sub_Q = np.dot(np.array(Qs[k]), sub_Q[:l, :])
 
+    # Reduction tree to compute Q
+    for k in range(int(np.log2(np.sqrt(size)))-1, -1, -1):
+        if rank_row % 2**k != 0:
+            continue
+
+        J = int(2**(k+1)*np.floor(rank_row/2**(k+1)) + (rank_row + 2**k) % 2**(k+1))
+
+        if rank_row < J:
+            comm_rows.send(sub_Q[l:, :], dest = J, tag = 878)
+            sub_Q = np.dot(np.array(Qs[k]), sub_Q[:l, :])
+
+        else:
+            mult = comm_rows.recv(source = J, tag = 878)
+            sub_Q = np.dot(np.array(Qs[k]), mult)
+
+
+    # COMPUTE AND BRAODCAST TRUNCATED SVD OF R
+    if rank_row == 0:
+        U, S, _ = np.linalg.svd(R)
+        Uk = U[:, :K]
+        Sk = S[:K]
     else:
-        mult = comm_cols.recv(source = J, tag = 878)
-        sub_Q = np.dot(np.array(Qs[k]), mult)
+        Uk = None
+        Sk = None
 
+    Uk = comm_rows.bcast(Uk, root=0)
+    Sk = comm_rows.bcast(Sk, root=0)
 
-# COMPUTE AND BRAODCAST TRUNCATED SVD OF R
-if rank_col == 0:
-    U, S, _ = np.linalg.svd(R)
-    Uk = U[:, :K]
-    Sk = S[:K]
-else:
-    Uk = None
-    Sk = None
+    # COMPUTE LOCAL MULTIPLICATION Q*Uk
+    Uk_hat_loc = np.dot(sub_Q, Uk)
 
-Uk = comm_cols.bcast(Uk, root=0)
-Sk = comm_cols.bcast(Sk, root=0)
-
-# COMPUTE LOCAL MULTIPLICATION Q*Uk
-Uk_hat_loc = np.dot(sub_Q, Uk)
-
-comm_cols.Gatherv(Uk_hat_loc, Uk_hat, root=0)
+    comm_rows.Gatherv(Uk_hat_loc, Uk_hat, root=0)
 
 if rank == 0:
      
