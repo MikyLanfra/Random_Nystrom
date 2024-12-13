@@ -25,12 +25,19 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_MSD_105_8192.pkl", "rb") as f:
+    with open("A_Exp_test.pkl", "rb") as f:
         A = pickle.load(f)
 
-    # _, S, _ = np.linalg.svd(A)
+    eps = np.finfo(np.float64).eps
 
-    # nNormA = np.sum(S)
+    for i in range(len(A)):
+        if A[i] < eps:
+            A[i] = 0
+
+    A = np.diag(A)
+
+    # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
+    
     time = MPI.Wtime()
 
 # Split into first column

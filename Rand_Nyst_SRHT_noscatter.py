@@ -26,8 +26,15 @@ rank_row = comm_rows.Get_rank()
 
 if rank == 0:
     
-    with open("A_MSD_105_8192.pkl", "rb") as f:
+    with open("A_Exp_test.pkl", "rb") as f:
         A = pickle.load(f)
+
+    eps = np.finfo(np.float64).eps
+
+    for i in range(len(A)):
+        if A[i] < eps:
+            A[i] = 0
+
 
     time1 = MPI.Wtime()
 
@@ -37,7 +44,9 @@ if rank == 0:
 
     # _, S, _ = np.linalg.svd(A)
 
-    # nNormA = np.sum(S)
+    nNormA = np.sum(A)
+
+    A = np.diag(A)
 
     HR = np.dot(H, R.T)
 
