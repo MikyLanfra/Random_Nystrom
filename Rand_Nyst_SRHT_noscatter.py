@@ -84,25 +84,27 @@ D_i_left_R = np.diag(np.sign(np.random.randn(c)))
 D_i_right_R = np.diag(np.sign(np.random.randn(l)))
 omega_i_right = np.sqrt(c/l) * np.dot(D_i_left_R, np.dot(HR, D_i_right_R))
 
+if rank==0: time_scatter = MPI.Wtime()
+
+# COMPUTE C
+# C = np.empty((n, l), dtype=np.float64)
 C_ij = np.dot(A_ij, omega_i_right)
+C_i = np.empty((c,l), dtype=np.float64)
+comm_cols.Reduce(C_ij, C_i, op = MPI.SUM, root = 0)
+# comm_rows.Gatherv(C_i, C, root=0)
+
+# COMPUTE B REDUNDANDTLY
 B_ij = np.dot(omega_i_left.T, C_ij)
+B = np.empty((l,l), dtype=np.float64)
+comm.Allreduce(B_ij, B, op=MPI.SUM)
+
 
 del HR
 if rank == 0:
     del H, R, A
 
+if rank==0: time_BC = MPI.Wtime()
 
-# COMPUTE C
-# C = np.empty((n, l), dtype=np.float64)
-
-C_i = np.empty((c,l), dtype=np.float64)
-comm_cols.Reduce(C_ij, C_i, op = MPI.SUM, root = 0)
-
-# comm_rows.Gatherv(C_i, C, root=0)
-
-# COMPUTE B REDUNDANDTLY
-B = np.empty((l,l), dtype=np.float64)
-comm.Allreduce(B_ij, B, op=MPI.SUM)
 
 # RE-SCATTER C
 # C_loc = np.empty((int(n/size), l), dtype=np.float64)
@@ -159,6 +161,7 @@ if rank_col == 0:
             mult = comm_rows.recv(source = J, tag = 878)
             sub_Q = np.dot(np.array(Qs[k]), mult)
 
+    if rank==0: time_QR = MPI.Wtime()
 
     # COMPUTE AND BRAODCAST TRUNCATED SVD OF R
     if rank_row == 0:
@@ -177,6 +180,8 @@ if rank_col == 0:
 
     comm_rows.Gatherv(Uk_hat_loc, Uk_hat, root=0)
 
+    if rank==0: time_Uk = MPI.Wtime()
+
 if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
@@ -187,3 +192,9 @@ if rank == 0:
     # nNorm = np.sum(S_Nyst)
 
     # print(f"Relative error: {nNorm/nNormA}")
+
+    print(f"Scatter time: {time_scatter - time2}")
+    print(f"BC time: {time_BC - time_scatter}")
+    print(f"Scatter and BC time: {time_BC - time2}")
+    print(f"QR time: {time_QR - time_BC}")
+    print(f"Uk time: {time_Uk - time_QR}")
