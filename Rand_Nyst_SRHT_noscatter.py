@@ -24,6 +24,8 @@ comm_rows = comm.Split(color=rank % n_blocks, key=rank // n_blocks)
 rank_col = comm_cols.Get_rank()
 rank_row = comm_rows.Get_rank()
 
+eps = np.finfo(np.float64).eps
+
 if rank == 0:
     
     with open("A_Exp_test.pkl", "rb") as f:
@@ -42,17 +44,11 @@ if rank == 0:
     np.random.seed(42069)
     R = np.eye(c)[np.random.randint(0, c, l)]
 
-    # _, S, _ = np.linalg.svd(A)
-
-    nNormA = np.sum(A)
-
     A = np.diag(A)
 
     HR = np.dot(H, R.T)
 
     print(f"Time to load A and generate HR: {MPI.Wtime() - time1}")
-
-    # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
 
     time2 = MPI.Wtime()
 
@@ -87,11 +83,9 @@ omega_i_right = np.sqrt(c/l) * np.dot(D_i_left_R, np.dot(HR, D_i_right_R))
 if rank==0: time_scatter = MPI.Wtime()
 
 # COMPUTE C
-# C = np.empty((n, l), dtype=np.float64)
 C_ij = np.dot(A_ij, omega_i_right)
 C_i = np.empty((c,l), dtype=np.float64)
 comm_cols.Reduce(C_ij, C_i, op = MPI.SUM, root = 0)
-# comm_rows.Gatherv(C_i, C, root=0)
 
 # COMPUTE B REDUNDANDTLY
 B_ij = np.dot(omega_i_left.T, C_ij)
@@ -106,14 +100,14 @@ if rank == 0:
 if rank==0: time_BC = MPI.Wtime()
 
 
-# RE-SCATTER C
-# C_loc = np.empty((int(n/size), l), dtype=np.float64)
-# comm.Scatterv(C, C_loc, root=0)
-
 if rank_col == 0:
-    # EIGENDEMPOSITION OF B
+    # SVD OF B
     U, lbda, _ = np.linalg.svd(B)
-    # U, lbda, _ = svd(B)
+
+    mask = lbda > eps
+    U = U[:, mask]
+    lbda = lbda[mask]
+
     L = np.dot(U, np.diag(np.sqrt(lbda)))
 
     # COMPUTE Z
@@ -186,12 +180,6 @@ if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
     print(f"Time to compute Nystrom: {MPI.Wtime() - time2}")
-
-    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
-
-    # nNorm = np.sum(S_Nyst)
-
-    # print(f"Relative error: {nNorm/nNormA}")
 
     print(f"Scatter time: {time_scatter - time2}")
     print(f"BC time: {time_BC - time_scatter}")

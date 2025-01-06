@@ -8,7 +8,7 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 n = 2**13
-l = 60
+l = 50
 K = 50
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
@@ -22,14 +22,13 @@ comm_rows = comm.Split(color=rank % n_blocks, key=rank // n_blocks)
 rank_col = comm_cols.Get_rank()
 rank_row = comm_rows.Get_rank()
 
+eps = np.finfo(np.float64).eps
+
 if rank == 0:
     
     with open("A_MNIST_8192.pkl", "rb") as f:
         A = pickle.load(f)
 
-    # _, S, _ = np.linalg.svd(A)
-
-    # nNormA = np.sum(S)
     time = MPI.Wtime()
 
 # Split into first column
@@ -73,12 +72,13 @@ comm.Allreduce(B_ij, B, op=MPI.SUM)
 C_loc = np.empty((int(n/size), l), dtype=np.float64)
 comm.Scatterv(C, C_loc, root=0)
 
-# # CHOLESKY DECOMPOSITION
-# L = np.linalg.cholesky(B)
-
-# EIGENDEMPOSITION OF B
+# SVD OF B
 U, lbda, _ = np.linalg.svd(B)
-# U, lbda, _ = svd(B)
+
+mask = lbda > eps
+U = U[:, mask]
+lbda = lbda[mask]
+
 L = np.dot(U, np.diag(np.sqrt(lbda)))
 
 # COMPUTE Z
@@ -148,9 +148,3 @@ if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
     print(f"Time: {MPI.Wtime() - time}")
-
-    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
-
-    # nNorm = np.sum(S_Nyst)
-
-    # print(f"Relative error: {nNorm/nNormA}")

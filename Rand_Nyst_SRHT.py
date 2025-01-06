@@ -9,7 +9,7 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 n = 2**13
-l = 60
+l = 50
 K = 50
 n_blocks = np.sqrt(size).astype(int)
 c = int(n // n_blocks)
@@ -24,6 +24,8 @@ comm_rows = comm.Split(color=rank % n_blocks, key=rank // n_blocks)
 rank_col = comm_cols.Get_rank()
 rank_row = comm_rows.Get_rank()
 
+eps = np.finfo(np.float64).eps
+
 if rank == 0:
     
     with open("A_MNIST_8192.pkl", "rb") as f:
@@ -35,15 +37,9 @@ if rank == 0:
     np.random.seed(42069)
     R = np.eye(c)[np.random.randint(0, c, l)]
 
-    # _, S, _ = np.linalg.svd(A)
-
-    # nNormA = np.sum(S)
-
     HR = np.dot(H, R.T)
 
     print(f"Time to load A and generate HR: {MPI.Wtime() - time1}")
-
-    # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
 
     time2 = MPI.Wtime()
 
@@ -99,9 +95,13 @@ comm.Allreduce(B_ij, B, op=MPI.SUM)
 C_loc = np.empty((int(n/size), l), dtype=np.float64)
 comm.Scatterv(C, C_loc, root=0)
 
-# EIGENDEMPOSITION OF B
+# SVD OF B
 U, lbda, _ = np.linalg.svd(B)
-# U, lbda, _ = svd(B)
+
+mask = lbda > eps
+U = U[:, mask]
+lbda = lbda[mask]
+
 L = np.dot(U, np.diag(np.sqrt(lbda)))
 
 # COMPUTE Z
@@ -171,9 +171,3 @@ if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
     print(f"Time to compute Nystrom: {MPI.Wtime() - time2}")
-
-    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
-
-    # nNorm = np.sum(S_Nyst)
-
-    # print(f"Relative error: {nNorm/nNormA}")

@@ -22,21 +22,18 @@ comm_rows = comm.Split(color=rank % n_blocks, key=rank // n_blocks)
 rank_col = comm_cols.Get_rank()
 rank_row = comm_rows.Get_rank()
 
+eps = np.finfo(np.float64).eps
 
 if rank == 0:
     
     with open("A_Exp_test.pkl", "rb") as f:
         A = pickle.load(f)
 
-    eps = np.finfo(np.float64).eps
-
     for i in range(len(A)):
         if A[i] < eps:
             A[i] = 0
 
     A = np.diag(A)
-
-    # A = np.arange(1, 65).reshape(8,8).astype(np.float64)
     
     time = MPI.Wtime()
 
@@ -68,15 +65,8 @@ if rank==0: time_scatter = MPI.Wtime()
 C_ij = np.dot(A_ij, omega_i_right)
 B_ij = np.dot(omega_i_left, C_ij)
 
-
-
-# COMPUTE C
-# C = np.empty((n, l), dtype=np.float64)
-
 C_i = np.empty((c,l), dtype=np.float64)
 comm_cols.Reduce(C_ij, C_i, op = MPI.SUM, root = 0)
-
-# comm_rows.Gatherv(C_i, C, root=0)
 
 # COMPUTE B REDUNDANDTLY
 B = np.empty((l,l), dtype=np.float64)
@@ -85,17 +75,14 @@ comm.Allreduce(B_ij, B, op=MPI.SUM)
 
 if rank==0: time_BC = MPI.Wtime()
 
-# RE-SCATTER C
-# C_loc = np.empty((int(n/size), l), dtype=np.float64)
-# comm.Scatterv(C, C_loc, root=0)
-
-# # CHOLESKY DECOMPOSITION
-# L = np.linalg.cholesky(B)
-
 if rank_col == 0:
-    # EIGENDEMPOSITION OF B
+    # SVD OF B
     U, lbda, _ = np.linalg.svd(B)
-    # U, lbda, _ = svd(B)
+
+    mask = lbda > eps
+    U = U[:, mask]
+    lbda = lbda[mask]
+
     L = np.dot(U, np.diag(np.sqrt(lbda)))
 
     # COMPUTE Z
@@ -169,12 +156,6 @@ if rank == 0:
      
     A_Nyst = np.dot(Uk_hat, np.dot(np.diag(Sk**2), Uk_hat.T))
     print(f"Time: {MPI.Wtime() - time}")
-
-    # _, S_Nyst, _ = np.linalg.svd(A - A_Nyst)
-
-    # nNorm = np.sum(S_Nyst)
-
-    # print(f"Relative error: {nNorm/nNormA}")
 
     print(f"Scatter time: {time_scatter - time}")
     print(f"BC time: {time_BC - time_scatter}")
