@@ -1,2 +1,5 @@
-Seq_1024_Results
-Par_8192_Results
+*A_Poly.pkl
+*A_Exp.pkl
+*A_MNIST.pkl
+*A_MSD_104.pkl
+*A_MSD_105.pkl
