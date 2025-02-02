@@ -39,11 +39,7 @@ In order to run the file it is necessary to download the matrices `mnist.mat` an
 This section provides a brief exploration of the main results, obtained by running the code on the `Helvetios Cluster` at EPFL.
 
 ### Stability Analysis
-A first set of results is given by the stability analysis of the method, obtained by analyzing the nuclear norm   
-$\|A\|_* = \sigma_1(A)+...+ \sigma_n(A)$   
-of the difference between $A$ and its low-rank approximation $\llbracket A_{nyst} \rrbracket$ given by the algorithm:   
-$Error = \|A- \llbracket A_{nyst} \rrbracket\|_* / \|A\|_*$
-
+A first set of results is given by the stability analysis of the method, obtained by analyzing the nuclear norm of the difference between $A$ and its low-rank approximation given by the algorithm.
 The following plots show the expected behaviour of an exponential decrease in error as we increase the low-rank dimension, while also showing the importance of the sketching in the algorithm, alongside the choice of sketching dimension.
 ![My Image](Pictures/stability_exp.png)
 ![My Image](Pictures/stability_msd_104.png)
