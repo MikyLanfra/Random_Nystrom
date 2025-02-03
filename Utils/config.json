@@ -1,0 +1,7 @@
+{
+    "matrix_input_path": "",
+    "matrix_output_path": "Matrices",
+    
+    "mnist_filename": "mnist.mat",
+    "msd_filename": "YearPredictionMSD.bz2"
+}
